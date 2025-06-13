@@ -43,40 +43,64 @@ def get_files() -> list:
     return files_list
 
 
-def download(file_dict):
-    file_name = file_dict["name"]
-    file_size = file_dict["size"]
+def download(file_dict:dict, file_name=None):
+    """ 下载文件
+    :param file_dict: 文件字典
+    :param file_name: 下载的文件名,可选
+    {'disableOpt': False, 'resid': 1140377977306210304, 'encryptedId': '6b6c599590216fa94662605118d0cda5ec64ec185782ce63', 'crc': '115fae6db495b99092f2f248cfbac6e4', 'puid': 245326646, 'isfile': True, 'pantype': 'USER_PAN', 'size': 12523, 'name': 'adwadadwada.txt', 'objectId': '87c53612c3a4b292e42f01c72f47f05c', 'restype': 'RES_TYPE_YUNPAN_FILE', 'uploadDate': 1749816897000, 'modifyDate': 1749816897000, 'uploadDateFormat': '2025-06-13', 'residstr': '1140377977306210304', 'suffix': 'txt', 'preview': 'http://pan-yz.chaoxing.com/preview/showpreview_1140377977306210304.html?v=1749817146026&enc=37571ad8d81c4641e27f831f80773ba0', 'thumbnail': '', 'creator': 245326646, 'duration': 0, 'isImg': False, 'isOffice': False, 'isMirror': False, 'filetype': '', 'filepath': '', 'sort': 101, 'topsort': 0, 'resTypeValue': 1, 'extinfo': ''}
+    :return: 下载是否成功 True/False
+    """
+    if file_name is None:
+        file_name = file_dict["name"]
+    # file_size = file_dict["size"]
     res_id = file_dict["resid"]
     get_download_url = f"http://pan-yz.chaoxing.com/api/getDownloadUrl?puid={uid}&fleid={res_id}&_token={token}"
 
+    # 获取下载直链
     get_download_response = requests.get(url=get_download_url, headers=headers, cookies=cookies)
-    # print(get_download_response.json())
+    print(get_download_response.json())
 
     download_url = get_download_response.json()["url"]
     download_headers = {
+        # 使用手机UA也可以下载不被拒绝访问
         "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 14; 2210132C Build/UKQ1.230804.001) (schild:eb5855e665cb3a6db065e6d1c8a086be) (device:2210132C) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_6.5.9_android_phone_10890_281 (@Kalimdor)_0fe743fbc142436cab02bc393001f490",
         # "Range": f"bytes=0-{file_size}",
         "Accept-Language": "zh_CN",
-        "Referer": download_url,
+        "Referer": download_url,  # 关键参数,否则会被拒绝访问
         "Connection": "Keep-Alive"
     }
     download_response = requests.get(url=download_url, headers=download_headers, cookies=cookies)
-    # print(download_response.text)
 
     with open(file_name, "wb") as f:
         f.write(download_response.content)
+    if download_response.status_code == 200:
+        return True
+    else:
+        print(download_response.text)
+        return False
 
 
-def delete_file(file_dict):
-    delete_url = f"http://pan-yz.chaoxing.com/api/delete?puid={uid}&resids={file_dict['resid']}&_token={token}"
+def delete_file(resid):
+    """ 删除文件
+    :param resid: 文件的id
+    :return:删除操作的结果 True/False
+    """
+    delete_url = f"http://pan-yz.chaoxing.com/api/delete?puid={uid}&resids={resid}&_token={token}"
     delete_response = requests.get(url=delete_url, headers=headers, cookies=cookies)
+    result = delete_response.json()["result"]
     print(delete_response.text)
+    return result
 
 
-def upload_files(file_path):
-    print(token, uid)
-    file_name = os.path.basename(file_path)
-    # print(filename)
+def upload_files(file_path, file_name=None):
+    """ 上传文件
+    :param file_path: 上传的文件路径,建议绝对路径,相对路径时需注意执行位置
+    :param file_name: 上传到云盘中的文件名,可选,默认从文件路径中解析
+    :return:返回上传结果 True/False
+    """
+    if file_name is None:
+        file_name = os.path.basename(file_path)
+    # print(file_name)
     files = [
         ('file', (file_name, open(file_path, 'rb'), "application/octet-stream"))
     ]
@@ -121,5 +145,5 @@ def upload_files(file_path):
 # upload_files("./files.json")
 # download()
 get_files()
-download(get_files()[0])
-# delete_file(get_files()[0])
+download(get_files()[1],"files.json")
+# delete_file(get_files()[0]["resid"])
