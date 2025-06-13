@@ -1,3 +1,5 @@
+import time
+
 import requests
 
 import os
@@ -53,12 +55,14 @@ def download(file_dict):
     download_url = get_download_response.json()["url"]
     download_headers = {
         "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 14; 2210132C Build/UKQ1.230804.001) (schild:eb5855e665cb3a6db065e6d1c8a086be) (device:2210132C) Language/zh_CN com.chaoxing.mobile/ChaoXingStudy_3_6.5.9_android_phone_10890_281 (@Kalimdor)_0fe743fbc142436cab02bc393001f490",
-        "Range": f"bytes=0-{file_size}",
+        # "Range": f"bytes=0-{file_size}",
         "Accept-Language": "zh_CN",
+        "Referer": download_url,
         "Connection": "Keep-Alive"
     }
     download_response = requests.get(url=download_url, headers=download_headers, cookies=cookies)
     # print(download_response.text)
+
     with open(file_name, "wb") as f:
         f.write(download_response.content)
 
@@ -78,20 +82,44 @@ def upload_files(file_path):
     ]
     upload_url = f"http://pan-yz.cldisk.com/upload/uploadfile?_token={token}&puid={uid}"
     upload_response = requests.post(url=upload_url, headers=headers, files=files)
+    # {'code': -6, 'msg': '不能识别的文件类型, 上传失败', 'newCode': 200009, 'result': False}
     print(upload_response.json())
     if upload_response.json()["result"] == False:
         print(upload_response.json()["newCode"])
         if upload_response.json()["newCode"] == 200009:
+            # 先上传一个正常文件
             modified_file_name = os.path.splitext(file_name)[0] + ".txt"
             modified_files = [
                 ('file', (modified_file_name, open(file_path, 'rb'), "application/octet-stream"))
             ]
             modified_upload_response = requests.post(url=upload_url, headers=headers, files=modified_files)
             print(modified_upload_response.json())
+            # 获取他的crc校验码
+            crc = modified_upload_response.json()["data"]["crc"]
+            file_size = modified_upload_response.json()["data"]["size"]
+            # 把上传的替身文件删除
+            delete_file(modified_upload_response.json()["data"])
+
+            newfile_url = f"https://pan-yz.chaoxing.com/api/newfle?_token={token}"
+            newfile_data = {
+                "puid": uid,
+                "fs": file_size,  # 文件大小
+                "fndest": file_name,  # 也是文件名,但是并不决定上传后的文件名称
+                "fnorigin": file_name,  # 文件名
+                "date": str(int(time.time() * 1000)),
+                "crc": crc,
+                # "fldid": "0"
+            }
+            newfile_response = requests.post(url=newfile_url, headers=headers, data=newfile_data)
+            print(newfile_response.json())
+
+            return modified_upload_response.json()["result"]
+
+    return upload_response.json()["result"]
 
 
 # upload_files("./files.json")
 # download()
 get_files()
-download(get_files()[13])
+download(get_files()[0])
 # delete_file(get_files()[0])
